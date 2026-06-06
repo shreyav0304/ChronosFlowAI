@@ -61,6 +61,12 @@ class ScheduleRepository(private val scheduleDao: ScheduleDao) {
     suspend fun deleteSavedScenario(scenario: SavedScenario) = scheduleDao.deleteSavedScenario(scenario)
     suspend fun clearSavedScenarios() = scheduleDao.deleteAllSavedScenarios()
 
+    // Schedule Presets
+    val allSchedulePresets: Flow<List<SchedulePreset>> = scheduleDao.getAllSchedulePresets()
+    suspend fun insertSchedulePreset(preset: SchedulePreset) = scheduleDao.insertSchedulePreset(preset)
+    suspend fun deleteSchedulePreset(preset: SchedulePreset) = scheduleDao.deleteSchedulePreset(preset)
+    suspend fun clearSchedulePresets() = scheduleDao.deleteAllSchedulePresets()
+
     // Seeding Demo Data
     suspend fun seedDemoData(force: Boolean = false) {
         if (force) {

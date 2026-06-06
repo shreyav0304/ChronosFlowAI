@@ -15,9 +15,10 @@ import com.example.data.*
         TimetableCell::class,
         LeaveRequest::class,
         SubstituteAssignment::class,
-        SavedScenario::class
+        SavedScenario::class,
+        SchedulePreset::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

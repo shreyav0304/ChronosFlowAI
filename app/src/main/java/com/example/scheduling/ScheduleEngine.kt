@@ -18,6 +18,13 @@ object ScheduleEngine {
         val softConstraintsNotes: List<String>
     )
 
+    data class RecommendedSlot(
+        val day: String,
+        val periodIndex: Int,
+        val score: Int,
+        val suitabilityReason: String
+    )
+
     // Solves and generates a timetable with hard constraints satisfied as much as possible,
     // and returns full details.
     fun generate(
@@ -498,5 +505,100 @@ object ScheduleEngine {
         }
 
         return conflicts
+    }
+
+    fun recommendSlots(
+        cells: List<TimetableCell>,
+        teachers: List<Teacher>,
+        subjects: List<Subject>,
+        classrooms: List<Classroom>,
+        targetSubject: Subject,
+        targetTeacher: Teacher,
+        targetClassroom: Classroom,
+        targetSection: String
+    ): List<RecommendedSlot> {
+        val recommendations = mutableListOf<RecommendedSlot>()
+
+        for (day in WORKING_DAYS) {
+            for (p in 0 until NUM_PERIODS) {
+                if (p == LUNCH_PERIOD) continue
+
+                val teacherKey = "$day-$p"
+                val checkUnavailableStr = "${day.take(3)}-$p" // "Mon-0", etc.
+                
+                // Hard clash check: availabilityConstraints
+                if (targetTeacher.availabilityConstraints.contains(checkUnavailableStr, ignoreCase = true)) {
+                    continue
+                }
+
+                // Hard clash check: Is teacher, room, or section busy at this slot?
+                val isTeacherBusy = cells.any { it.teacherId == targetTeacher.id && it.day == day && it.periodIndex == p }
+                val isRoomBusy = cells.any { it.classroomId == targetClassroom.id && it.day == day && it.periodIndex == p }
+                val isSectionBusy = cells.any { it.section == targetSection && it.day == day && it.periodIndex == p }
+
+                if (isTeacherBusy || isRoomBusy || isSectionBusy) {
+                    continue
+                }
+
+                // Score computation starts at 75%
+                var score = 75
+                val reasonParts = mutableListOf<String>()
+
+                // 1. Teacher preferences
+                if (targetTeacher.preferredTeachingSlots.contains(checkUnavailableStr, ignoreCase = true)) {
+                    score += 15
+                    reasonParts.add("Matches faculty teaching preference (+15%)")
+                }
+                if (targetTeacher.preferredFreeSlots.contains(checkUnavailableStr, ignoreCase = true)) {
+                    score -= 20
+                    reasonParts.add("Overlaps faculty preferred free slot (-20%)")
+                }
+
+                // 2. Classroom compatibility
+                if (targetSubject.isLab == targetClassroom.isLab) {
+                    score += 10
+                    reasonParts.add("Optimal lab/lecture room match (+10%)")
+                } else {
+                    score -= 30
+                    reasonParts.add("Room type category mismatch (-30%)")
+                }
+
+                // 3. Compact workload for the section (Horizontal chaining)
+                val adjacentSlots = listOf(p - 1, p + 1).filter { it >= 0 && it < NUM_PERIODS && it != LUNCH_PERIOD }
+                val hasAdjacentClassForSection = cells.any { it.section == targetSection && it.day == day && it.periodIndex in adjacentSlots }
+                if (hasAdjacentClassForSection) {
+                    score += 10
+                    reasonParts.add("Maintains streamlined student block sequence (+10%)")
+                } else {
+                    score -= 10
+                    reasonParts.add("Creates intermediate student idle gap (-10%)")
+                }
+
+                // 4. Consecutive subject limits
+                val subjectTodayCount = cells.count { it.section == targetSection && it.subjectId == targetSubject.id && it.day == day }
+                if (subjectTodayCount >= 2) {
+                    score -= 25
+                    reasonParts.add("High daily concentration of same subject (-25%)")
+                }
+
+                val finalScore = score.coerceIn(10, 100)
+                val reason = if (reasonParts.isNotEmpty()) {
+                    reasonParts.joinToString(", ")
+                } else {
+                    "No conflicts; balanced open period."
+                }
+
+                recommendations.add(
+                    RecommendedSlot(
+                        day = day,
+                        periodIndex = p,
+                        score = finalScore,
+                        suitabilityReason = reason
+                    )
+                )
+            }
+        }
+
+        return recommendations.sortedByDescending { it.score }.take(3)
     }
 }

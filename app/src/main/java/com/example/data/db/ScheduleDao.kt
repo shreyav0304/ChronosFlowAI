@@ -116,4 +116,17 @@ interface ScheduleDao {
 
     @Query("DELETE FROM saved_scenarios")
     suspend fun deleteAllSavedScenarios()
+
+    // Schedule Presets
+    @Query("SELECT * FROM schedule_presets ORDER BY timestamp DESC")
+    fun getAllSchedulePresets(): Flow<List<SchedulePreset>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSchedulePreset(preset: SchedulePreset): Long
+
+    @Delete
+    suspend fun deleteSchedulePreset(preset: SchedulePreset)
+
+    @Query("DELETE FROM schedule_presets")
+    suspend fun deleteAllSchedulePresets()
 }

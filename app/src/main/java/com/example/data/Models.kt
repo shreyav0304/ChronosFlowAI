@@ -91,3 +91,14 @@ data class SavedScenario(
     val timestamp: Long = System.currentTimeMillis()
 ) : Serializable
 
+@Entity(tableName = "schedule_presets")
+data class SchedulePreset(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val cellsJson: String,
+    val activeCellsCount: Int,
+    val score: Int,
+    val timestamp: Long = System.currentTimeMillis()
+) : Serializable
+
+

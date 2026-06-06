@@ -148,4 +148,49 @@ object GeminiService {
             "Simulator Error: Failed to execute AI calculation. Reason: ${e.message}"
         }
     }
+
+    // Enriches local slots recommendations with premium AI-driven trends and availability insights
+    suspend fun enrichRecommendationsWithAi(
+        targetSubject: Subject,
+        targetTeacher: Teacher,
+        targetClassroom: Classroom,
+        targetSection: String,
+        localRecommendations: List<ScheduleEngine.RecommendedSlot>
+    ): String {
+        val apiKey = GeminiApiClient.getApiKey()
+        if (apiKey.isEmpty() || localRecommendations.isEmpty()) {
+            return ""
+        }
+
+        val candidatesPayload = localRecommendations.joinToString("\n") { 
+            "- Option: ${it.day} Period ${it.periodIndex + 1} (Score: ${it.score}%, Reason: ${it.suitabilityReason})"
+        }
+
+        val promptPayload = """
+            We are scheduling a class block:
+            - Section: $targetSection
+            - Subject: ${targetSubject.name} (${targetSubject.code})
+            - Faculty: ${targetTeacher.name} (Designation: ${targetTeacher.designation})
+            - Lecture Room: ${targetClassroom.name} (Cap: ${targetClassroom.capacity})
+
+            Our algorithmic slot scanner identified these top 3 candidate open slots based on schedules and preferences:
+            $candidatesPayload
+
+            Please examine these candidates. Write a very short, polite 1-sentence analytical or decorative assessment for each candidate explaining why the slot serves students and faculty well (e.g. 'Highly favorable as it matches Prof. X's teaching slot and maintains vertical daily continuity for active students.'). Be extremely direct, objective, and clear. Format each entry as a bullet list.
+        """.trimIndent()
+
+        val request = GenerateContentRequest(
+            contents = listOf(
+                ContentDto(parts = listOf(PartDto(text = promptPayload)))
+            ),
+            systemInstruction = ContentDto(parts = listOf(PartDto(text = "You are a professional academic coordinator assistant. Provide a brief 1-sentence evaluative comment for each candidate slot provided. Return only the bulleted comments.")))
+        )
+
+        return try {
+            val response = GeminiApiClient.service.generateContent(apiKey, request)
+            response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+    }
 }

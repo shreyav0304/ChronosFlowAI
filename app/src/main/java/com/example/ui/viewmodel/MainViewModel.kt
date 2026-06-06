@@ -12,9 +12,13 @@ import com.example.data.db.AppDatabase
 import com.example.data.repository.ScheduleRepository
 import com.example.scheduling.GeminiService
 import com.example.scheduling.ScheduleEngine
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class Screen {
     Login,
@@ -48,6 +52,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val leaveRequests: StateFlow<List<LeaveRequest>>
     val substitutes: StateFlow<List<SubstituteAssignment>>
     val savedScenarios: StateFlow<List<SavedScenario>>
+    val schedulePresets: StateFlow<List<SchedulePreset>>
 
     // Navigation and UX state variables
     private val _currentScreen = MutableStateFlow(Screen.Login)
@@ -107,9 +112,74 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isSimulatingWhatIf = MutableStateFlow(false)
     val isSimulatingWhatIf: StateFlow<Boolean> = _isSimulatingWhatIf.asStateFlow()
 
+    // AI Slot Recommendations States
+    private val _slotRecommendations = MutableStateFlow<List<ScheduleEngine.RecommendedSlot>>(emptyList())
+    val slotRecommendations: StateFlow<List<ScheduleEngine.RecommendedSlot>> = _slotRecommendations.asStateFlow()
+
+    private val _aiRecommendationEnrichment = MutableStateFlow("")
+    val aiRecommendationEnrichment: StateFlow<String> = _aiRecommendationEnrichment.asStateFlow()
+
+    private val _isCalculatingRecommendations = MutableStateFlow(false)
+    val isCalculatingRecommendations: StateFlow<Boolean> = _isCalculatingRecommendations.asStateFlow()
+
     // Drag, Drop, Swap State
     private val _swappingCell = MutableStateFlow<TimetableCell?>(null)
     val swappingCell: StateFlow<TimetableCell?> = _swappingCell.asStateFlow()
+
+    // Main UI Thread Undo/Redo historical State
+    private val undoStack = mutableListOf<List<TimetableCell>>()
+    private val redoStack = mutableListOf<List<TimetableCell>>()
+
+    private val _canUndo = MutableStateFlow(false)
+    val canUndo: StateFlow<Boolean> = _canUndo.asStateFlow()
+
+    private val _canRedo = MutableStateFlow(false)
+    val canRedo: StateFlow<Boolean> = _canRedo.asStateFlow()
+
+    private fun captureHistory() {
+        val current = ArrayList(timetableCells.value)
+        undoStack.add(current)
+        if (undoStack.size > 30) {
+            undoStack.removeAt(0)
+        }
+        redoStack.clear()
+        _canUndo.value = true
+        _canRedo.value = false
+    }
+
+    fun undo() {
+        if (undoStack.isNotEmpty()) {
+            val currentState = timetableCells.value
+            val previousState = undoStack.removeAt(undoStack.lastIndex)
+            redoStack.add(currentState)
+            if (redoStack.size > 30) {
+                redoStack.removeAt(0)
+            }
+            _canUndo.value = undoStack.isNotEmpty()
+            _canRedo.value = true
+            
+            viewModelScope.launch(Dispatchers.IO) {
+                repository.saveTimetable(previousState)
+            }
+        }
+    }
+
+    fun redo() {
+        if (redoStack.isNotEmpty()) {
+            val currentState = timetableCells.value
+            val nextState = redoStack.removeAt(redoStack.lastIndex)
+            undoStack.add(currentState)
+            if (undoStack.size > 30) {
+                undoStack.removeAt(0)
+            }
+            _canUndo.value = true
+            _canRedo.value = redoStack.isNotEmpty()
+            
+            viewModelScope.launch(Dispatchers.IO) {
+                repository.saveTimetable(nextState)
+            }
+        }
+    }
 
     // Real-Time Validation Conflicts
     val liveConflicts: StateFlow<List<String>>
@@ -131,6 +201,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         leaveRequests = repository.allLeaveRequests.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
         substitutes = repository.allSubstitutes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
         savedScenarios = repository.allSavedScenarios.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        schedulePresets = repository.allSchedulePresets.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
         // Calculate live conflicts reactively when cells, teachers, subjects or classrooms alter
         liveConflicts = combine(timetableCells, teachers, subjects, classrooms) { cells, tList, sList, rList ->
@@ -348,6 +419,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Solver Generation Command
     fun generateTimetable() {
+        captureHistory()
         viewModelScope.launch(Dispatchers.IO) {
             _isGenerating.value = true
             
@@ -388,6 +460,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun executeSwapCells(cellA: TimetableCell, cellB: TimetableCell) {
+        captureHistory()
         viewModelScope.launch(Dispatchers.IO) {
             // Swap day and period index between cell A and cell B
             val swappedA = cellA.copy(day = cellB.day, periodIndex = cellB.periodIndex)
@@ -402,6 +475,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun moveCellToVacantSlot(cell: TimetableCell, targetDay: String, targetPeriodIndex: Int) {
+        captureHistory()
         viewModelScope.launch(Dispatchers.IO) {
             val updated = cell.copy(day = targetDay, periodIndex = targetPeriodIndex)
             repository.insertTimetableCell(updated)
@@ -546,9 +620,78 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // Requests slot recommendations using local heuristics + optional Gemini AI enrichment
+    fun getSlotRecommendations(
+        subject: Subject?,
+        teacher: Teacher?,
+        classroom: Classroom?,
+        section: String
+    ) {
+        if (subject == null || teacher == null || classroom == null) return
+        
+        viewModelScope.launch(Dispatchers.IO) {
+            _isCalculatingRecommendations.value = true
+            _aiRecommendationEnrichment.value = ""
+            
+            // Calculate heuristic recommendations
+            val locals = ScheduleEngine.recommendSlots(
+                cells = timetableCells.value,
+                teachers = teachers.value,
+                subjects = subjects.value,
+                classrooms = classrooms.value,
+                targetSubject = subject,
+                targetTeacher = teacher,
+                targetClassroom = classroom,
+                targetSection = section
+            )
+            _slotRecommendations.value = locals
+
+            // Optional: query Gemini to enrich with conversational explanations
+            val enrichedText = GeminiService.enrichRecommendationsWithAi(
+                targetSubject = subject,
+                targetTeacher = teacher,
+                targetClassroom = classroom,
+                targetSection = section,
+                localRecommendations = locals
+            )
+            _aiRecommendationEnrichment.value = enrichedText
+            _isCalculatingRecommendations.value = false
+        }
+    }
+
+    fun clearSlotRecommendations() {
+        _slotRecommendations.value = emptyList()
+        _aiRecommendationEnrichment.value = ""
+    }
+
     fun deleteTimetableCellById(cellId: Int) {
+        captureHistory()
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteTimetableCellById(cellId)
+            recomputeMetrics(timetableCells.value)
+        }
+    }
+
+    fun addManualCell(
+        section: String,
+        subjectId: Int,
+        teacherId: Int,
+        classroomId: Int,
+        day: String,
+        periodIndex: Int
+    ) {
+        captureHistory()
+        viewModelScope.launch(Dispatchers.IO) {
+            val cell = TimetableCell(
+                departmentId = subjects.value.find { it.id == subjectId }?.id ?: 1,
+                section = section,
+                subjectId = subjectId,
+                teacherId = teacherId,
+                classroomId = classroomId,
+                day = day,
+                periodIndex = periodIndex
+            )
+            repository.insertTimetableCell(cell)
             recomputeMetrics(timetableCells.value)
         }
     }
@@ -585,6 +728,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun clearAllScenarioStates() {
         viewModelScope.launch(Dispatchers.IO) {
             repository.clearSavedScenarios()
+        }
+    }
+
+    // --- Moshi serialization config for schedule presets ---
+    private val moshi = Moshi.Builder()
+        .addLast(KotlinJsonAdapterFactory())
+        .build()
+
+    private val cellsAdapter = moshi.adapter<List<TimetableCell>>(
+        Types.newParameterizedType(List::class.java, TimetableCell::class.java)
+    )
+
+    fun saveCurrentAsPreset(name: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val cells = timetableCells.value
+            val serialized = cellsAdapter.toJson(cells)
+            repository.insertSchedulePreset(
+                SchedulePreset(
+                    name = name,
+                    cellsJson = serialized,
+                    activeCellsCount = cells.size,
+                    score = _optimizationScore.value
+                )
+            )
+        }
+    }
+
+    fun loadPreset(preset: SchedulePreset) {
+        captureHistory()
+        viewModelScope.launch(Dispatchers.IO) {
+            val cells = cellsAdapter.fromJson(preset.cellsJson) ?: emptyList()
+            repository.saveTimetable(cells)
+        }
+    }
+
+    fun deletePreset(preset: SchedulePreset) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteSchedulePreset(preset)
+        }
+    }
+
+    fun clearAllPresets() {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.clearSchedulePresets()
         }
     }
 
