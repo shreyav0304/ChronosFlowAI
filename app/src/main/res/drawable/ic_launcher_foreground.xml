@@ -1,0 +1,55 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Outer board frame: crisp white rounded card -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 30,28 A 6,6 0 0,1 78,28 L 78,76 A 6,6 0 0,1 30,76 Z" />
+
+    <!-- Card Top Header styling - subtle blue-tinted banner -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M 30,28 A 6,6 0 0,1 78,28 L 78,40 L 30,40 Z" />
+
+    <!-- Tiny calendar binder loops to make it distinct as a schedule calendar -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 38,22 s -1,0 -1,1 v 8 h 2 v -8 c 0,-1 -1,-1 -1,-1 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,22 s -1,0 -1,1 v 8 h 2 v -8 c 0,-1 -1,-1 -1,-1 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 70,22 s -1,0 -1,1 v 8 h 2 v -8 c 0,-1 -1,-1 -1,-1 Z" />
+
+    <!-- Timetable grid slot 1 (Top Left): Blue accent slot -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M 34,44 a 2,2 0 0,1 2,-2 h 14 a 2,2 0 0,1 2,2 v 10 a 2,2 0 0,1 -2,2 H 36 a 2,2 0 0,1 -2,-2 Z" />
+
+    <!-- Timetable grid slot 2 (Top Right): Light Slate slot -->
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M 56,44 a 2,2 0 0,1 2,-2 h 14 a 2,2 0 0,1 2,2 v 10 a 2,2 0 0,1 -2,2 H 58 a 2,2 0 0,1 -2,-2 Z" />
+
+    <!-- Timetable grid slot 3 (Bottom Left): Violet/Indigo slot -->
+    <path
+        android:fillColor="#6366F1"
+        android:pathData="M 34,60 a 2,2 0 0,1 2,-2 h 14 a 2,2 0 0,1 2,2 v 10 a 2,2 0 0,1 -2,2 H 36 a 2,2 0 0,1 -2,-2 Z" />
+
+    <!-- Timetable grid slot 4 (Bottom Right): Accent Emerald Optimized Slot -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M 56,60 a 2,2 0 0,1 2,-2 h 14 a 2,2 0 0,1 2,2 v 10 a 2,2 0 0,1 -2,2 H 58 a 2,2 0 0,1 -2,-2 Z" />
+
+    <!-- Floating Elegant AI Sparkle Star overlapping top right -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M 82,24 q -6,0 -6,-6 q 0,6 -6,6 q 6,0 6,6 q 0,-6 6,-6" />
+    <path
+        android:fillColor="#FFF"
+        android:pathData="M 88,18 q -3,0 -3,-3 q 0,3 -3,3 q 3,0 3,3 q 0,-3 3,-3" />
+</vector>

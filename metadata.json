@@ -1,0 +1,6 @@
+{
+  "name": "ChronosFlow AI",
+  "description": "AI-powered, conflict-free scheduling engine with dynamic resource allocation, visual conflict resolution, and predictive what-if event simulation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
