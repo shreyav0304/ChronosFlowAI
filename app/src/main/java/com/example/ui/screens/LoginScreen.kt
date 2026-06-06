@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MainViewModel
 import com.example.ui.viewmodel.Screen
@@ -26,32 +27,185 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.text.font.FontWeight
+
+@Composable
+fun TimetableVisualSlot(
+    title: String,
+    room: String,
+    color: Color
+) {
+    if (color == Color.Transparent) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(DarkBg.copy(alpha = 0.5f))
+                .border(1.dp, DarkBorder.copy(alpha = 0.4f), RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "FREE",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                color = TextMuted.copy(alpha = 0.6f)
+            )
+        }
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(color.copy(alpha = 0.12f))
+                .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                .padding(vertical = 3.dp, horizontal = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                    color = color
+                )
+                Text(
+                    text = room,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
+                    color = TextSecondary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun TimetableMiniatureVisual(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "timetable_visual")
+    
+    // Smooth pulsing solver/optimizer simulator
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_alpha"
+    )
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth(0.95f)
+            .clip(RoundedCornerShape(20.dp))
+            .background(DarkSurface)
+            .border(1.2.dp, DarkBorder, RoundedCornerShape(20.dp))
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Upper status bar: Constraint Engine Status
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Flashing pulse dot representing real-time scheduler state
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(AccentEmerald.copy(alpha = pulseAlpha))
+                        .border(1.dp, AccentEmerald, androidx.compose.foundation.shape.CircleShape)
+                )
+                Text(
+                    text = "CONFLICT-FREE ENGINE ACTIVE",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.2.sp,
+                        fontSize = 9.sp
+                    ),
+                    color = AccentEmerald
+                )
+            }
+            Text(
+                text = "Rooms Validated",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                color = TextMuted
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Grid contents
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Time Labels Column
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.width(36.dp)
+            ) {
+                Spacer(modifier = Modifier.height(16.dp)) // Align with header
+                Text("09:00", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = TextMuted)
+                Text("11:00", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = TextMuted)
+                Text("13:00", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = TextMuted)
+            }
+
+            // Morning/Mid/Afternoon timetable blocks for Days
+            val days = listOf("MON", "TUE", "WED", "THU")
+            days.forEachIndexed { dayIdx, day ->
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Day title header
+                    Text(
+                        text = day,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp
+                        ),
+                        color = TextPrimary
+                    )
+
+                    // Slots
+                    when (dayIdx) {
+                        0 -> { // MON
+                            TimetableVisualSlot(title = "CS101", room = "R102", color = AccentTeal)
+                            TimetableVisualSlot(title = "MATH5", room = "R204", color = AccentViolet)
+                            TimetableVisualSlot(title = "—", room = "Free", color = Color.Transparent)
+                        }
+                        1 -> { // TUE
+                            TimetableVisualSlot(title = "PHYS2", room = "LabA", color = AccentViolet)
+                            TimetableVisualSlot(title = "CS101", room = "R102", color = AccentTeal)
+                            TimetableVisualSlot(title = "CHEM1", room = "LabB", color = AccentRose)
+                        }
+                        2 -> { // WED
+                            TimetableVisualSlot(title = "—", room = "Free", color = Color.Transparent)
+                            TimetableVisualSlot(title = "MATH5", room = "R204", color = AccentViolet)
+                            TimetableVisualSlot(title = "PHYS1", room = "LabA", color = AccentTeal)
+                        }
+                        3 -> { // THU
+                            TimetableVisualSlot(title = "CHEM1", room = "LabB", color = AccentRose)
+                            TimetableVisualSlot(title = "—", room = "Free", color = Color.Transparent)
+                            TimetableVisualSlot(title = "CS102", room = "R102", color = AccentTeal)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun LoginScreen(viewModel: MainViewModel) {
     var institutionName by remember { mutableStateOf("St. Andrews University") }
     var selectedRoleAdmin by remember { mutableStateOf(true) }
-
-    // Stunning unique icon animation: subtle infinite rotation and breathing scale
-    val infiniteTransition = rememberInfiniteTransition(label = "sparkle")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(12000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "sparkle_rotation"
-    )
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "sparkle_scale"
-    )
 
     Box(
         modifier = Modifier
@@ -70,37 +224,10 @@ fun LoginScreen(viewModel: MainViewModel) {
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Sparkly AI Header with interactive rotating halo
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.padding(bottom = 12.dp)
-            ) {
-                // Outer glowing halo
-                Box(
-                    modifier = Modifier
-                        .size(68.dp)
-                        .graphicsLayer {
-                            rotationZ = -rotation
-                            scaleX = scale
-                            scaleY = scale
-                        }
-                        .border(
-                            width = 1.5.dp,
-                            brush = Brush.sweepGradient(listOf(AccentTealLight, AccentVioletLight, AccentTealLight)),
-                            shape = RoundedCornerShape(18.dp)
-                        )
-                )
-                Icon(
-                    imageVector = Icons.Default.Star,
-                    contentDescription = "AI Sparkle",
-                    tint = AccentTealLight,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .graphicsLayer {
-                            rotationZ = rotation
-                        }
-                )
-            }
+            // Custom Visual Timetable Optimizer Header
+            TimetableMiniatureVisual(
+                modifier = Modifier.padding(bottom = 18.dp)
+            )
 
             Text(
                 text = "ChronosFlow AI",
@@ -264,7 +391,7 @@ fun LoginScreen(viewModel: MainViewModel) {
                             .height(50.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Star,
+                            imageVector = Icons.Default.PlayArrow,
                             contentDescription = "Quick load setup",
                             tint = AccentTealLight,
                             modifier = Modifier.size(18.dp)
